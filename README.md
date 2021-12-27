@@ -52,7 +52,7 @@ Therefore, what the prepared cmd line is going to do is to use **`dd` to write a
 In order to control the RIP **2 techniques** are implemented in `DDexec.sh`:
 
 ### Retsled
-**This technique was defined and developed by [Arget](https://google.com) TODO: Put arget github**
+**This technique was defined and developed by [Arget](https://github.com/arget13) a good friend of mine and a really awesome guy in binary exploitation.**
 
 This technique uses a retsled to overwrite an important part of the stack of the proccess with the goal of overwritting a RIP address inside the stack with a series of RET. At the end of the retsled a ROP chain is located, so once the RIP is controled by a RET instruction of the retsled the execution will arrive to the ROP chain.
 

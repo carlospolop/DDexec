@@ -103,6 +103,6 @@ echo 'f0VMRgIBAQAAAAAAAAAAAAMAPgABAAAAYGEAAAAAAABAAAAAAAAAAGg3AgAAAAAAAAAAAEAAOA
 Once you have executed this cmd line, you will have **loaded the binary in memory in that memfd**. So you can just execute it as a normal binary:
 ```bash
 # Doing this you will be executing the loaded binary
-## Change the fd number if neceSsary
-/proc/\$(pidof dd)/fd/0
+## Change the fd number
+/proc/\$(pidof dd)/fd/<num>
 ```

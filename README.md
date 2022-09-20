@@ -33,7 +33,7 @@ sudo pip3 install ROPGadget
 First of all you need to to **download some files from the victim system**:
 - **Dowload the `dd` binary**. Find it with `command -v dd`. This is required.
 - **Download the libc library**. Find it with `ldd $(command -v dd) | grep libc | cut -d' ' -f3`. *This is required with mode "retsled"*.
-- **Get the Libc base address from the target executing: `printf "0x";(linux64 -R setarch $ARCH -R cat /proc/self/maps || setarch `arch` -R cat /proc/self/maps) | grep libc | head -n1 | cut -d'-' -f1`**
+- **Get the Libc base address from the target executing: ``printf "0x";(linux64 -R setarch $ARCH -R cat /proc/self/maps || setarch `arch` -R cat /proc/self/maps) | grep libc | head -n1 | cut -d'-' -f1``**
 
 *Note that in the **STDOUT is only going to be printed the commands to execute in the victim machine**. Banner, information and logs are printed in STDERR.*
 
